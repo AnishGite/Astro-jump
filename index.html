@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Astro Jumper</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            background: linear-gradient(to bottom, #000022, #00001A);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Orbitron', sans-serif;
+            overflow: hidden;
+        }
+
+        #gameCanvas {
+            box-shadow: 
+                0 0 10px rgba(0, 255, 255, 0.3),
+                0 0 20px rgba(0, 255, 255, 0.2),
+                0 0 30px rgba(0, 255, 255, 0.1);
+            border-radius: 10px;
+            background: linear-gradient(
+                to bottom, 
+                rgba(0, 0, 80, 0.9),
+                rgba(0, 0, 50, 0.9)
+            );
+        }
+
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255, 255, 255, 0.6);
+            text-align: center;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+    <div id="instructions">
+        ← → Move | SPACE Jump | R Restart
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        
+        const GAME_WIDTH = 400;
+        const GAME_HEIGHT = 600;
+        const PLAYER_WIDTH = 40;
+        const PLAYER_HEIGHT = 60;
+        const PLATFORM_WIDTH = 80;
+        const PLATFORM_HEIGHT = 15;
+        const POWERUP_SIZE = 20;
+
+       
+        class Star {
+            constructor() {
+                this.x = Math.random() * GAME_WIDTH;
+                this.y = Math.random() * GAME_HEIGHT;
+                this.radius = Math.random() * 2;
+                this.speed = Math.random() * 0.5;
+                this.opacity = Math.random() * 0.8 + 0.2;
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.fillStyle = `rgba(255,255,255,${this.opacity})`;
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            update() {
+                this.y += this.speed;
+                if (this.y > GAME_HEIGHT) {
+                    this.y = 0;
+                    this.x = Math.random() * GAME_WIDTH;
+                    this.opacity = Math.random() * 0.8 + 0.2;
+                }
+            }
+        }
+
+      
+        class Player {
+            constructor(x, y) {
+                this.width = PLAYER_WIDTH;
+                this.height = PLAYER_HEIGHT;
+                this.x = x - this.width / 2;
+                this.y = y - this.height;
+                this.velocityY = 0;
+                this.jumpVelocity = -15;
+                this.img = new Image();
+                this.img.src = createAstronautSVG();
+                this.hasJetpack = false;
+                this.jetpackDuration = 0;
+            }
+
+            draw() {
+                ctx.drawImage(this.img, this.x, this.y, this.width, this.height);
+
+                if (this.hasJetpack) {
+                    ctx.fillStyle = 'rgba(255, 165, 0, 0.7)';
+                    ctx.fillRect(this.x, this.y + this.height, this.width, 10);
+                }
+            }
+
+            move() {
+                
+                if (keys.left) this.x -= 5;
+                if (keys.right) this.x += 5;
+
+                
+                this.x = Math.max(0, Math.min(this.x, GAME_WIDTH - this.width));
+
+               
+                game.platforms.forEach(platform => {
+                    if (
+                        this.velocityY > 0 &&
+                        this.x < platform.x + platform.width &&
+                        this.x + this.width > platform.x &&
+                        this.y + this.height >= platform.y &&
+                        this.y + this.height <= platform.y + platform.height
+                    ) {
+                        this.velocityY = this.jumpVelocity;
+
+                      
+                        if (platform.powerUp) {
+                            this.collectPowerUp(platform.powerUp);
+                            platform.powerUp = null;
+                        }
+                    }
+                });
+
+            
+                if (this.hasJetpack) {
+                    this.jetpackDuration--;
+                    if (this.jetpackDuration <= 0) {
+                        this.hasJetpack = false;
+                    } else {
+                        this.velocityY = -2; // Jetpack thrust
+                    }
+                } else {
+                    this.velocityY += 0.5; // Gravity
+                }
+                this.y += this.velocityY;
+            }
+
+            collectPowerUp(powerUp) {
+                if (powerUp.type === 'jetpack') {
+                    this.hasJetpack = true;
+                    this.jetpackDuration = 120; // 2 seconds of jetpack
+                }
+            }
+        }
+
+      
+        class Platform {
+            constructor(x, y) {
+                this.width = PLATFORM_WIDTH;
+                this.height = PLATFORM_HEIGHT;
+                this.x = x;
+                this.y = y;
+                this.color = '#808080';
+                this.powerUp = null;
+                if (Math.random() < 0.2) {
+                    this.powerUp = new PowerUp(
+                        this.x + this.width / 2 - POWERUP_SIZE / 2,
+                        this.y - POWERUP_SIZE
+                    );
+                }
+            }
+
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+
+                if (this.powerUp) {
+                    this.powerUp.draw();
+                }
+            }
+        }
+
+       
+        class PowerUp {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.size = POWERUP_SIZE;
+                this.type = 'jetpack';
+            }
+
+            draw() {
+                ctx.fillStyle = 'yellow';
+                ctx.fillRect(this.x, this.y, this.size, this.size);
+            }
+        }
+
+        function createAstronautSVG() {
+            const svg = `
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+                    <rect x="35" y="20" width="30" height="30" fill="#FFFFFF"/>
+                    <rect x="25" y="50" width="50" height="30" fill="#0077BE"/>
+                    <rect x="40" y="80" width="20" height="20" fill="#666666"/>
+                    <rect x="35" y="20" width="30" height="30" fill="none" stroke="#000000" stroke-width="3"/>
+                    <path d="M30,50 Q50,40 70,50" stroke="#000000" stroke-width="3" fill="none"/>
+                </svg>
+            `;
+            const blob = new Blob([svg], {type: 'image/svg+xml'});
+            return URL.createObjectURL(blob);
+        }
+
+  
+        const game = {
+            player: null,
+            platforms: [],
+            stars: [],
+            score: 0,
+            highScore: 0,
+            gameOver: false
+        };
+
+        const keys = {
+            left: false,
+            right: false,
+            space: false
+        };
+
+      
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') keys.left = true;
+            if (e.key === 'ArrowRight') keys.right = true;
+            if (e.key === ' ') keys.space = true;
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowLeft') keys.left = false;
+            if (e.key === 'ArrowRight') keys.right = false;
+            if (e.key === ' ') keys.space = false;
+        });
+
+      
+        function init() 
+{ game.stars = [];
+            for (let i = 0; i < 100; i++) {
+                game.stars.push(new Star());
+            }
+
+         
+            game.platforms = [];
+            
+           
+            const startPlatform = new Platform(
+                GAME_WIDTH / 2 - PLATFORM_WIDTH / 2, 
+                GAME_HEIGHT - PLATFORM_HEIGHT
+            );
+            game.platforms.push(startPlatform);
+
+           
+            for (let i = 1; i < 6; i++) {
+                game.platforms.push(new Platform(
+                    Math.random() * (GAME_WIDTH - PLATFORM_WIDTH),
+                    GAME_HEIGHT - i * 100
+                ));
+            }
+
+            game.player = new Player(
+                startPlatform.x + startPlatform.width / 2, 
+                startPlatform.y
+            );
+
+            game.score = 0;
+            game.gameOver = false;
+        }
+
+      
+        function update() {
+            if (game.gameOver) return;
+
+            
+            game.stars.forEach(star => star.update());
+
+            
+            game.player.move();
+
+            if (game.player.y < GAME_HEIGHT / 2) {
+                game.score += Math.abs(game.player.velocityY);
+                
+                game.player.y = GAME_HEIGHT / 2;
+                game.platforms.forEach(platform => {
+                    platform.y += Math.abs(game.player.velocityY);
+                });
+
+                
+                game.platforms = game.platforms.filter(platform => platform.y < GAME_HEIGHT);
+                
+               
+                while (game.platforms.length < 6) {
+                    game.platforms.push(new Platform(
+                        Math.random() * (GAME_WIDTH - PLATFORM_WIDTH),
+                        0
+                    ));
+                }
+            }
+
+       
+            if (game.player.y > GAME_HEIGHT) {
+                game.gameOver = true;
+                game.highScore = Math.max(game.score, game.highScore);
+            }
+        }
+
+        
+        function render() {
+            
+            const gradient = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT);
+            gradient.addColorStop(0, 'rgba(0, 0, 80, 0.9)');
+            gradient.addColorStop(1, 'rgba(0, 0, 50, 0.9)');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+          
+            game.stars.forEach(star => star.draw());
+
+           
+            game.platforms.forEach(platform => platform.draw());
+
+          
+            game.player.draw();
+
+
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.font = '18px Orbitron';
+            ctx.fillText(`Score: ${Math.floor(game.score)}`, 10, 30);
+            ctx.fillText(`High Score: ${Math.floor(game.highScore)}`, 10, 60);
+
+            
+            if (game.gameOver) {
+                ctx.fillStyle = 'rgba(0,0,0,0.7)';
+                ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+                ctx.font = '36px Orbitron';
+                ctx.textAlign = 'center';
+                ctx.fillText('GAME OVER', GAME_WIDTH/2, GAME_HEIGHT/2 - 50);
+                ctx.font = '24px Orbitron';
+                ctx.fillText(`Score: ${Math.floor(game.score)}`, GAME_WIDTH/2, GAME_HEIGHT/2);
+                ctx.font = '18px Orbitron';
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                ctx.fillText('Press R to Restart', GAME_WIDTH/2, GAME_HEIGHT/2 + 50);
+            }
+        }
+
+       
+        function gameLoop() {
+            update();
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'r' || e.key === 'R') {
+                if (game.gameOver) {
+                    init();
+                }
+            }
+        });
+
+        init();
+        gameLoop();
+    </script>
+</body>
+</html>
