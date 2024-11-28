@@ -11,3 +11,7 @@ Gameplay Features-
 Features-
 
 1.Power up-s
+
+Disclaimer-
+
+All the code is made by me but I took refrence and inspiration from the internet and mobile games and I also took help of ai in some part of the code.
